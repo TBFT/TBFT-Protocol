@@ -14,7 +14,7 @@ replicas:
 # Client key options
 clients:
   # Number of clients
-  number: 1
+  number: 2
 
   # Keyspec to use
   keyspec: "ECDSA"

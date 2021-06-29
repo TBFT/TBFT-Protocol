@@ -18,7 +18,6 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"time"
@@ -33,6 +32,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+)
+
+const (
+	payloadSize = 1024 * 1024
 )
 
 // requestCmd represents the request command
@@ -127,15 +130,10 @@ func requests(args []string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create client instance: %s", err)
 	}
 
-	if len(args) > 0 {
-		for _, arg := range args {
-			request(client, arg)
-		}
-	} else {
-		scanner := bufio.NewScanner(os.Stdin)
-		for scanner.Scan() {
-			request(client, scanner.Text())
-		}
+	argBytes := make([]byte, payloadSize, payloadSize)
+	arg := string(argBytes)
+	for i := 0; i <= 1000; i++ {
+		request(client, arg)
 	}
 
 	return nil, nil

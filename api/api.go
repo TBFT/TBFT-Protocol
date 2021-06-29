@@ -135,7 +135,7 @@ type Authenticator interface {
 	// given an authentication tag, ID of replica/client that
 	// signed the message, and the authentication role used to
 	// generate the tag.
-	VerifyMessageAuthenTag(role AuthenticationRole, id uint32, msg []byte, tag []byte) error
+	VerifyMessageAuthenTag(role AuthenticationRole, id uint32, msg []byte, tag []byte) ([] byte,error)
 
 	// GenerateMessageAuthenTag generates an authentication tag
 	// for the message using the credentials selected by the

@@ -94,7 +94,7 @@ func (c *EcdsaSigCipher) Verify(md, sig []byte, pubKey interface{}) bool {
 // authentication tags of any arbitrary messages
 type AuthenticationScheme interface {
 	GenerateAuthenticationTag(m []byte, privKey interface{}) ([]byte, error)
-	VerifyAuthenticationTag(m []byte, sig []byte, pubKey interface{}) error
+	VerifyAuthenticationTag(m []byte, sig []byte, pubKey interface{})([]byte, error)
 }
 
 // PublicAuthenScheme specifies the adopted public authentication scheme. It
@@ -117,12 +117,12 @@ func (a *PublicAuthenScheme) GenerateAuthenticationTag(m []byte, privKey interfa
 
 // VerifyAuthenticationTag returns true if the verification is successful on
 // the signature of the message.
-func (a *PublicAuthenScheme) VerifyAuthenticationTag(m []byte, sig []byte, pubKey interface{}) error {
+func (a *PublicAuthenScheme) VerifyAuthenticationTag(m []byte, sig []byte, pubKey interface{}) ([]byte,error) {
 	md := a.HashScheme.New().Sum(m)
 	if !a.SigCipher.Verify(md, sig, pubKey) {
-		return fmt.Errorf("invalid signature")
+		return nil,fmt.Errorf("invalid signature")
 	}
-	return nil
+	return nil,nil
 }
 
 // usigKeyFingerprint is the first 8 bytes of SHA256 hash over the
@@ -183,16 +183,16 @@ func (au *SGXUSIGAuthenticationScheme) GenerateAuthenticationTag(m []byte, privK
 
 // VerifyAuthenticationTag verifies the supplied authentication tag.
 // Marshaled USIG UI represents an authentication tag.
-func (au *SGXUSIGAuthenticationScheme) VerifyAuthenticationTag(m []byte, sig []byte, pubKey interface{}) error {
+func (au *SGXUSIGAuthenticationScheme) VerifyAuthenticationTag(m []byte, sig []byte, pubKey interface{})([]byte,error) {
 	var ui usig.UI
 
 	if err := ui.UnmarshalBinary(sig); err != nil {
-		return fmt.Errorf("failed to unmarshal UI: %v", err)
+		return nil,fmt.Errorf("failed to unmarshal UI: %v", err)
 	}
 
 	fingerprint, err := makeUSIGKeyFingerprint(pubKey)
 	if err != nil {
-		return fmt.Errorf("failed to calculate USIG key fingerprint: %s", err)
+		return nil,fmt.Errorf("failed to calculate USIG key fingerprint: %s", err)
 	}
 
 	au.lock.Lock()
@@ -218,22 +218,23 @@ func (au *SGXUSIGAuthenticationScheme) VerifyAuthenticationTag(m []byte, sig []b
 	// bootstrapping procedure.
 	epoch, ok := au.epoch[fingerprint]
 	if !ok && ui.Counter == uint64(1) {
-		epoch, _, err = sgxusig.ParseCert(ui.Cert)
+		epoch, _,_,_, err = sgxusig.ParseCert(ui.Cert)
 		if err != nil {
-			return fmt.Errorf("failed to parse UI certificate: %s", err)
+			return nil,fmt.Errorf("failed to parse UI certificate: %s", err)
 		}
 	}
 
 	usigID, err := sgxusig.MakeID(epoch, pubKey)
 	if err != nil {
-		return fmt.Errorf("failed to construct USIG identity: %s", err)
+		return nil,fmt.Errorf("failed to construct USIG identity: %s", err)
 	}
 
-	if err := au.usig.VerifyUI(m, &ui, usigID); err != nil {
-		return err
+	bb,er := au.usig.VerifyUI(m, &ui, usigID)
+	if er != nil {
+		return nil,er
 	}
 
 	au.epoch[fingerprint] = epoch
 
-	return nil
+	return bb,nil
 }

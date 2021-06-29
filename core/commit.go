@@ -29,7 +29,7 @@ import (
 // It authenticates and checks the supplied message for internal
 // consistency. It does not use replica's current state and has no
 // side-effect. It is safe to invoke concurrently.
-type commitValidator func(commit messages.Commit) error
+type commitValidator func(commit messages.Commit)( error)
 
 // commitApplier applies Commit message to current replica state.
 //
@@ -79,12 +79,13 @@ func makeCommitValidator(verifyUI uiVerifier, validatePrepare prepareValidator) 
 			return fmt.Errorf("commit from primary")
 		}
 
-		if err := validatePrepare(prepare); err != nil {
+		if _,err := validatePrepare(prepare); err != nil {
 			return fmt.Errorf("invalid Prepare: %s", err)
 		}
 
-		if err := verifyUI(commit); err != nil {
-			return fmt.Errorf("UI is not valid: %s", err)
+		_,er := verifyUI(commit)
+		if er != nil {
+			return fmt.Errorf("UI is not valid: %s", er)
 		}
 
 		return nil

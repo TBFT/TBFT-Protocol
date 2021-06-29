@@ -19,12 +19,9 @@ package requestbuffer
 import (
 	"sync"
 	"testing"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/hyperledger-labs/minbft/messages"
-
 	protobufMessages "github.com/hyperledger-labs/minbft/messages/protobuf"
 )
 

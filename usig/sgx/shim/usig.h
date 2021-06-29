@@ -50,7 +50,7 @@ extern "C" {
  * Return: SGX_SUCCESS if no error; SGX error status, otherwise
  */
 sgx_status_t usig_init(const char *enclave_file, sgx_enclave_id_t *enclave_id,
-                       void *sealed_data, size_t sealed_data_size);
+                      uint8_t * key, void *sealed_data, size_t sealed_data_size);
 
 /**
  * usig_destroy() - Destroy a USIG enclave instance
@@ -78,7 +78,9 @@ sgx_status_t usig_destroy(const sgx_enclave_id_t enclave_id);
 sgx_status_t usig_create_ui(sgx_enclave_id_t enclave_id,
                             sgx_sha256_hash_t digest,
                             uint64_t *counter,
-                            sgx_ec256_signature_t *signature);
+                            sgx_ec256_signature_t *signature,
+							uint8_t* encrypted_shares,
+							uint8_t* encrypted_secret_h);
 
 /**
  * usig_get_epoch() - Get epoch value of the USIG instance
@@ -124,6 +126,9 @@ sgx_status_t usig_get_pub_key(sgx_enclave_id_t enclave_id,
 sgx_status_t usig_seal_key(sgx_enclave_id_t enclave_id,
                            void **sealed_data,
                            size_t *sealed_data_size);
+sgx_status_t usig_generate_secret(sgx_enclave_id_t enclave_id,int secret_size, int n, int k,uint8_t *encrypted_shares,uint8_t *encrypted_secret_h);
+
+sgx_status_t usig_verify_ui(sgx_enclave_id_t enclave_id,sgx_sha256_hash_t digest,sgx_ec256_signature_t * signature, uint8_t * encrypted_secret_h, uint8_t * encrypted_shares, uint8_t * shares, sgx_sha256_hash_t secret_h);
 
 #ifdef __cplusplus
 }

@@ -67,7 +67,8 @@ func makeMessageSignatureVerifier(authen api.Authenticator, extractAuthenBytes a
 		}
 
 		authenBytes := extractAuthenBytes(msg.(messages.Message))
-		return authen.VerifyMessageAuthenTag(role, id, authenBytes, msg.Signature())
+		_,er:=authen.VerifyMessageAuthenTag(role, id, authenBytes, msg.Signature())
+		return er
 	}
 }
 

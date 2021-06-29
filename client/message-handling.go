@@ -149,7 +149,7 @@ func makeReplyMessageHandler(consumer replyConsumer, authenticator replyAuthenti
 			return
 		}
 
-		logger.Debugf("Received Reply message from replica %d", replicaID)
+		logger.Debugf("Received Reply message from replica %d, seq: %d", replicaID, reply.Sequence())
 
 		if ok := consumer(reply); !ok {
 			logger.Infof("Dropped Reply message from replica %d", replicaID)
@@ -165,8 +165,9 @@ func makeReplyAuthenticator(clientID uint32, authenticator api.Authenticator) re
 			return fmt.Errorf("client ID mismatch")
 		}
 
-		return authenticator.VerifyMessageAuthenTag(api.ReplicaAuthen, reply.ReplicaID(),
+		_,err:= authenticator.VerifyMessageAuthenTag(api.ReplicaAuthen, reply.ReplicaID(),
 			messages.AuthenBytes(reply), reply.Signature())
+		return err
 	}
 }
 

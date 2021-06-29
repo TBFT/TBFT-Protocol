@@ -57,7 +57,6 @@ func ListenAndServe(s ReplicaServer, addr string, serverOpts ...grpc.ServerOptio
 }
 
 type server struct {
-	proto.UnimplementedChannelServer
 	replica    api.ConnectionHandler
 	grpcServer *grpc.Server
 }
@@ -69,6 +68,8 @@ func New(replica api.ConnectionHandler) ReplicaServer {
 }
 
 func (s *server) Serve(lis net.Listener, serverOpts ...grpc.ServerOption) error {
+	//RealOpts := append(serverOpts, grpc.MaxRecvMsgSize(1024*1024*10),grpc.MaxSendMsgSize(10*1024*1024))
+	//s.grpcServer = grpc.NewServer(RealOpts...)
 	s.grpcServer = grpc.NewServer(serverOpts...)
 	proto.RegisterChannelServer(s.grpcServer, s)
 

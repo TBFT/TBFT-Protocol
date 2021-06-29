@@ -19,6 +19,7 @@ enclave {
 
     trusted {
         public sgx_status_t ecall_usig_init(
+		[in,size=128] uint8_t *key,
             [in, size=sealed_data_size] void *sealed_data,
             uint32_t sealed_data_size
         );
@@ -41,8 +42,19 @@ enclave {
         public sgx_status_t ecall_usig_create_ui(
             [in, isary] sgx_sha256_hash_t digest,
             [out] uint64_t *counter,
-            [out] sgx_ec256_signature_t *signature
+            [out] sgx_ec256_signature_t *signature,
+		[out,size=51] uint8_t *encrypted_shares,
+		[out,size=32] uint8_t *encrypted_secret_h
         );
+		public sgx_status_t ecall_usig_verify_ui(
+			[in,isary] sgx_sha256_hash_t digest,
+			[in] sgx_ec256_signature_t *signature,
+			[in,size=32] uint8_t * encrypted_secret_h,
+			[in,count=17] uint8_t* encrypted_shares,
+			[out,count=17] uint8_t* shares,
+			[out,isary] sgx_sha256_hash_t secret_h
+);
+	public sgx_status_t ecall_usig_generate_secret(int secret_size, int n, int k,[in,out,count=51]uint8_t *encrypted_shares,[out,count=32] uint8_t *encrypted_secret_h);
     };
 
     untrusted {

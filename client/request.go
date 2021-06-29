@@ -37,7 +37,7 @@ type requestHandler func(operation []byte) <-chan []byte
 // and number of tolerated faulty replicas.
 func makeRequestHandler(clientID uint32, seq sequenceGenerator, authen api.Authenticator, buf *requestbuffer.T, f uint32, logger logger.Logger) requestHandler {
 	submitter := makeRequestSubmitter(clientID, seq, authen, buf, logger)
-	collector := makeReplyCollector(f, buf)
+	collector := makeReplyCollector(0, buf)
 	return func(operation []byte) <-chan []byte {
 		return handleRequest(operation, submitter, collector)
 	}

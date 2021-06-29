@@ -23,6 +23,11 @@ import (
 	"github.com/hyperledger-labs/minbft/core/internal/peerstate"
 	"github.com/hyperledger-labs/minbft/messages"
 	"github.com/hyperledger-labs/minbft/usig"
+	"github.com/hyperledger-labs/minbft/usig/sgx"
+)
+
+const (
+	secretSize = 16
 )
 
 // uiCapturer synchronizes beginning of sequential processing of USIG
@@ -41,7 +46,7 @@ type uiCapturer func(msg messages.CertifiedMessage) (new bool, release func())
 // It verifies if the UI assigned to the message is correct and its
 // USIG certificate is valid for the message. A UI with zero counter
 // value is never valid.
-type uiVerifier func(msg messages.CertifiedMessage) error
+type uiVerifier func(msg messages.CertifiedMessage) ([]byte, error)
 
 // uiAssigner assigns a unique identifier to a message.
 //
@@ -59,20 +64,26 @@ func makeUICapturer(providePeerState peerstate.Provider) uiCapturer {
 
 // makeUIVerifier constructs uiVerifier using the supplied external
 // authenticator to verify USIG certificates.
-func makeUIVerifier(authen api.Authenticator, extractAuthenBytes authenBytesExtractor) uiVerifier {
-	return func(msg messages.CertifiedMessage) error {
+func makeUIVerifier(id uint32, authen api.Authenticator, extractAuthenBytes authenBytesExtractor) uiVerifier {
+	return func(msg messages.CertifiedMessage) ([]byte, error) {
 		ui := msg.UI()
 		if ui.Counter == uint64(0) {
-			return fmt.Errorf("invalid (zero) counter value")
+			return nil, fmt.Errorf("invalid (zero) counter value")
 		}
-
+		cert := ui.Cert
+		epoch, signature, encryptedShare, encryptedSecretH, err := sgx.ParseCert(cert)
+		newEncryptedShare := encryptedShare[(id-1)*(secretSize+1):]
+		newCert := sgx.MakeCert(epoch, signature, newEncryptedShare, encryptedSecretH)
+		ui.Cert = newCert
 		authenBytes := extractAuthenBytes(msg)
 		uiBytes := usig.MustMarshalUI(ui)
-		if err := authen.VerifyMessageAuthenTag(api.USIGAuthen, msg.ReplicaID(), authenBytes, uiBytes); err != nil {
-			return fmt.Errorf("failed verifying USIG certificate: %s", err)
+
+		bb, err := authen.VerifyMessageAuthenTag(api.USIGAuthen, msg.ReplicaID(), authenBytes, uiBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed verifying USIG certificate: %s", err)
 		}
 
-		return nil
+		return bb, nil
 	}
 }
 

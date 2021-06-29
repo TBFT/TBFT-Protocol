@@ -33,7 +33,7 @@
 static sgx_launch_token_t token;
 
 sgx_status_t usig_init(const char *enclave_file, sgx_enclave_id_t *enclave_id,
-                       void *sealed_data, size_t sealed_data_size)
+                      uint8_t *keys, void *sealed_data, size_t sealed_data_size)
 {
         sgx_status_t ret;
         int updated = 0;
@@ -43,7 +43,7 @@ sgx_status_t usig_init(const char *enclave_file, sgx_enclave_id_t *enclave_id,
         if (ret != SGX_SUCCESS) {
                 goto err_out;
         }
-        ret = ECALL_USIG(*enclave_id, init, sealed_data, sealed_data_size);
+        ret = ECALL_USIG(*enclave_id, init, keys,sealed_data, sealed_data_size);
         if (ret != SGX_SUCCESS) {
                 goto err_enclave_created;
         }
@@ -64,9 +64,10 @@ sgx_status_t usig_destroy(const sgx_enclave_id_t enclave_id)
 sgx_status_t usig_create_ui(sgx_enclave_id_t enclave_id,
                             sgx_sha256_hash_t digest,
                             uint64_t *counter,
-                            sgx_ec256_signature_t *signature)
+                            sgx_ec256_signature_t *signature,
+							uint8_t *encrypted_shares,uint8_t *encrypted_secret_h)
 {
-        return ECALL_USIG(enclave_id, create_ui, digest, counter, signature);
+        return ECALL_USIG(enclave_id, create_ui, digest, counter, signature,encrypted_shares,encrypted_secret_h);
 }
 
 sgx_status_t usig_get_epoch(sgx_enclave_id_t enclave_id,
@@ -114,4 +115,14 @@ err_buf_allocated:
         free(buf);
 err_out:
         return ret;
+}
+
+sgx_status_t usig_generate_secret(sgx_enclave_id_t enclave_id,int secret_size, int n, int k,uint8_t *encrypted_shares,uint8_t *encrypted_secret_h)
+{
+	return ECALL_USIG(enclave_id, generate_secret,secret_size,n,k,encrypted_shares,encrypted_secret_h);
+}
+
+sgx_status_t usig_verify_ui(sgx_enclave_id_t enclave_id,sgx_sha256_hash_t digest,sgx_ec256_signature_t * signature, uint8_t * encrypted_secret_h, uint8_t * encrypted_shares, uint8_t * shares, sgx_sha256_hash_t secret_h)
+{
+	return ECALL_USIG(enclave_id,verify_ui,digest,signature,encrypted_secret_h,encrypted_shares,shares,secret_h);
 }

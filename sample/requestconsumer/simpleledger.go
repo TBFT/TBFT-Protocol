@@ -22,7 +22,6 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -120,13 +119,16 @@ func NewSimpleLedger() *SimpleLedger {
 			// simpleledger: one transaction makes one block
 			block := l.appendBlock(msg.requestPayload)
 
-			log.Printf("Received block[%d]: %v", block.Height, string(msg.requestPayload))
+			log.Printf("Received block[%d] ", block.Height)
 			// trivial implementation of the transaction execution and return the result
-			blockJSON, err := json.Marshal(block)
-			if err != nil {
-				panic(err)
-			}
-			msg.resultChan <- blockJSON
+			//blockJSON, err := json.Marshal(block)
+			//if err != nil {
+			//	panic(err)
+			//}
+			//msg.resultChan <- blockJSon
+			bb:= make([]byte,1,1)
+			//bb="Received block"
+			msg.resultChan <- bb
 		}
 	}()
 

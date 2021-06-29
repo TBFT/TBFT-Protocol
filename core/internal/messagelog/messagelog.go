@@ -37,45 +37,38 @@ import (
 // they appear in the log. Closing the channel passed to this function
 // indicates the returned channel should be closed. Nil channel may be
 // passed if there's no need to close the returned channel.
-//
-// Messages returns all messages currently in the log.
-//
-// Reset replaces messages stored in the log with the supplied ones.
 type MessageLog interface {
 	Append(msg messages.Message)
 	Stream(done <-chan struct{}) <-chan messages.Message
-	Messages() []messages.Message
-	Reset(msgs []messages.Message)
 }
 
 type messageLog struct {
-	sync.RWMutex
+	lock sync.RWMutex
 
 	// Messages in order added
 	msgs []messages.Message
 
-	// Channel to close and recreate when adding new messages
-	newAdded chan struct{}
-
-	// Channel to close and recreate on reset
-	resetChan chan struct{}
+	// Buffered channels to notify about new messages
+	newAdded []chan<- struct{}
 }
 
 // New creates a new instance of the message log.
 func New() MessageLog {
-	return &messageLog{
-		newAdded:  make(chan struct{}),
-		resetChan: make(chan struct{}),
-	}
+	return &messageLog{}
 }
 
 func (log *messageLog) Append(msg messages.Message) {
-	log.Lock()
-	defer log.Unlock()
+	log.lock.Lock()
+	defer log.lock.Unlock()
 
 	log.msgs = append(log.msgs, msg)
-	close(log.newAdded)
-	log.newAdded = make(chan struct{})
+
+	for _, newAdded := range log.newAdded {
+		select {
+		case newAdded <- struct{}{}:
+		default:
+		}
+	}
 }
 
 func (log *messageLog) Stream(done <-chan struct{}) <-chan messages.Message {
@@ -87,30 +80,21 @@ func (log *messageLog) Stream(done <-chan struct{}) <-chan messages.Message {
 func (log *messageLog) supplyMessages(ch chan<- messages.Message, done <-chan struct{}) {
 	defer close(ch)
 
-	log.RLock()
-	resetChan := log.resetChan
-	log.RUnlock()
+	newAdded := make(chan struct{}, 1)
+	log.lock.Lock()
+	log.newAdded = append(log.newAdded, newAdded)
+	log.lock.Unlock()
 
-	var next int
-loop:
+	next := 0
 	for {
-		log.RLock()
-		select {
-		case <-resetChan:
-			resetChan = log.resetChan
-			next = 0
-		default:
-		}
-		newAdded := log.newAdded
+		log.lock.RLock()
 		msgs := log.msgs[next:]
 		next = len(log.msgs)
-		log.RUnlock()
+		log.lock.RUnlock()
 
 		for _, msg := range msgs {
 			select {
 			case ch <- msg:
-			case <-resetChan:
-				continue loop
 			case <-done:
 				return
 			}
@@ -118,25 +102,8 @@ loop:
 
 		select {
 		case <-newAdded:
-		case <-resetChan:
 		case <-done:
 			return
 		}
 	}
-}
-
-func (log *messageLog) Messages() []messages.Message {
-	log.RLock()
-	defer log.RUnlock()
-
-	return log.msgs
-}
-
-func (log *messageLog) Reset(msgs []messages.Message) {
-	log.Lock()
-	defer log.Unlock()
-
-	log.msgs = msgs
-	close(log.resetChan)
-	log.resetChan = make(chan struct{})
 }

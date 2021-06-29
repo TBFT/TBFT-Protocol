@@ -16,6 +16,7 @@ package messages
 
 import (
 	"fmt"
+	"encoding/hex"
 )
 
 const maxStringWidth = 256
@@ -41,29 +42,20 @@ func Stringify(msg Message) string {
 			shortString(string(msg.Result()), maxStringWidth))
 	case Prepare:
 		req := msg.Request()
-		return fmt.Sprintf("<PREPARE cv=%d replica=%d view=%d client=%d seq=%d>",
+		return fmt.Sprintf("<PREPARE cv=%d replica=%d view=%d client=%d seq=%d, secret: %s>",
 			cv, msg.ReplicaID(), msg.View(),
-			req.ClientID(), req.Sequence())
+			req.ClientID(), req.Sequence(),hex.EncodeToString(msg.UI().Cert))
 	case Commit:
 		return fmt.Sprintf("<COMMIT cv=%d replica=%d prepare=%s>",
 			cv, msg.ReplicaID(), Stringify(msg.Prepare()))
+	case Vote:
+		return fmt.Sprintf("<VOTE cv=%d replica=%d share=%s>",             msg.Prepare().UI().Counter, msg.ReplicaID(), hex.EncodeToString(msg.Share()))
 	case ReqViewChange:
 		return fmt.Sprintf("<REQ-VIEW-CHANGE replica=%d newView=%d>",
 			msg.ReplicaID(), msg.NewView())
-	case ViewChange:
-		return fmt.Sprintf("<VIEW-CHANGE cv=%d replica=%d newView=%d vcCert=%s>",
-			cv, msg.ReplicaID(), msg.NewView(), vcCertString(msg.ViewChangeCert()))
 	}
 
 	return "(unknown message)"
-}
-
-func vcCertString(vcCert []ReqViewChange) string {
-	q := make([]uint32, 0, len(vcCert))
-	for _, rvc := range vcCert {
-		q = append(q, rvc.ReplicaID())
-	}
-	return fmt.Sprintf("<quorum=%v>", q)
 }
 
 func shortString(str string, max int) string {

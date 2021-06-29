@@ -57,6 +57,10 @@ func (*impl) NewCommit(r uint32, prep messages.Prepare) messages.Commit {
 	return newCommit(r, prep)
 }
 
+func (*impl) NewVote(r uint32, prep messages.Prepare) messages.Vote {
+	return newVote(r, prep)
+}
+
 func (*impl) NewReply(r, cl uint32, seq uint64, res []byte) messages.Reply {
 	return newReply(r, cl, seq, res)
 }
@@ -65,10 +69,47 @@ func (*impl) NewReqViewChange(r uint32, nv uint64) messages.ReqViewChange {
 	return newReqViewChange(r, nv)
 }
 
-func (*impl) NewViewChange(r uint32, nv uint64, log messages.MessageLog, vcCert messages.ViewChangeCert) messages.ViewChange {
-	return newViewChange(r, nv, log, vcCert)
+func typedMessageFromPb(pbMsg *pb.Message) (messages.Message, error) {
+	switch t := pbMsg.Typed.(type) {
+	case *pb.Message_Hello:
+		return newHelloFromPb(t.Hello)
+	case *pb.Message_Request:
+		return newRequestFromPb(t.Request)
+	case *pb.Message_Reply:
+		return newReplyFromPb(t.Reply)
+	case *pb.Message_Prepare:
+		return newPrepareFromPb(t.Prepare)
+	case *pb.Message_Commit:
+		return newCommitFromPb(t.Commit)
+	case *pb.Message_Vote:
+		return newVoteFromPb(t.Vote)
+	case *pb.Message_ReqViewChange:
+		return newReqViewChangeFromPb(t.ReqViewChange)
+	default:
+		return nil, xerrors.New("unknown message type")
+	}
 }
 
 func marshalMessage(m proto.Message) ([]byte, error) {
-	return proto.Marshal(pb.WrapMessage(m))
+	pbMsg := &pb.Message{}
+	switch m := m.(type) {
+	case *pb.Hello:
+		pbMsg.Typed = &pb.Message_Hello{Hello: m}
+	case *pb.Request:
+		pbMsg.Typed = &pb.Message_Request{Request: m}
+	case *pb.Reply:
+		pbMsg.Typed = &pb.Message_Reply{Reply: m}
+	case *pb.Prepare:
+		pbMsg.Typed = &pb.Message_Prepare{Prepare: m}
+	case *pb.Commit:
+		pbMsg.Typed = &pb.Message_Commit{Commit: m}
+	case *pb.Vote:
+		pbMsg.Typed = &pb.Message_Vote{Vote: m}
+	case *pb.ReqViewChange:
+		pbMsg.Typed = &pb.Message_ReqViewChange{ReqViewChange: m}
+	default:
+		panic("marshaling unknown message type")
+	}
+
+	return proto.Marshal(pbMsg)
 }

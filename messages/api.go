@@ -28,9 +28,9 @@ type MessageImpl interface {
 	NewRequest(clientID uint32, sequence uint64, operation []byte) Request
 	NewPrepare(replicaID uint32, view uint64, request Request) Prepare
 	NewCommit(replicaID uint32, prepare Prepare) Commit
+	NewVote(replicaID uint32,prepare Prepare) Vote
 	NewReply(replicaID, clientID uint32, sequence uint64, result []byte) Reply
 	NewReqViewChange(replicaID uint32, newView uint64) ReqViewChange
-	NewViewChange(replicaID uint32, newView uint64, log MessageLog, vcCert ViewChangeCert) ViewChange
 }
 
 type Message interface {
@@ -90,6 +90,7 @@ type Prepare interface {
 	CertifiedMessage
 	View() uint64
 	Request() Request
+	Secret() []byte
 	ImplementsPeerMessage()
 	ImplementsPrepare()
 }
@@ -99,6 +100,16 @@ type Commit interface {
 	Prepare() Prepare
 	ImplementsPeerMessage()
 	ImplementsCommit()
+}
+
+type Vote interface {
+	PeerMessage
+	SignedMessage
+	Prepare() Prepare
+	Share() []byte
+	SetShare([]byte)
+	ImplementsPeerMessage()
+	ImplementsVote()
 }
 
 type Reply interface {
@@ -117,15 +128,3 @@ type ReqViewChange interface {
 	ImplementsPeerMessage()
 	ImplementsReqViewChange()
 }
-
-type ViewChange interface {
-	CertifiedMessage
-	NewView() uint64
-	MessageLog() MessageLog
-	ViewChangeCert() ViewChangeCert
-	ImplementsPeerMessage()
-	ImplementsViewChange()
-}
-
-type MessageLog []CertifiedMessage
-type ViewChangeCert []ReqViewChange

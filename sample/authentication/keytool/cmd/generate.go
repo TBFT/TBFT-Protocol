@@ -29,11 +29,11 @@ import (
 )
 
 const (
-	defNrReplicas     = 3
+	defNrReplicas     = 13
 	defReplicaKeySpec = "ECDSA"
 
 	defReplicaSecParam = 256
-	defNrClients       = 1
+	defNrClients       = 100
 	defClientKeySpec   = "ECDSA"
 	defClientSecParam  = 256
 

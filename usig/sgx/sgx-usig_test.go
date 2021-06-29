@@ -18,21 +18,23 @@ package sgx
 
 import (
 	"testing"
-
+	"log"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	enclaveFile = "enclave/libusig.signed.so"
+	enclaveFile = "./enclave/libusig.signed.so"
 )
 
 func TestSGXUSIG(t *testing.T) {
 	msg := []byte("Test message")
-	wrongMsg := []byte("Another message")
-
+//	wrongMsg := []byte("Another message")
+	var	keys  []byte
+	keys=make([]byte,32,32)
 	// Create the first USIG instance to generate a new USIG key
-	usig, err := New(enclaveFile, nil)
+	usig, err := New(enclaveFile,keys, nil)
 	assert.NoError(t, err, "Error creating fist SGXUSIG instance")
 	assert.NotNil(t, usig, "Got nil SGXUSIG instance")
 
@@ -48,7 +50,7 @@ func TestSGXUSIG(t *testing.T) {
 	usig.Destroy()
 
 	// Recreate USIG restoring the key from the first instance
-	usig, err = New(enclaveFile, key)
+	usig, err = New(enclaveFile, keys,key)
 	assert.NoError(t, err, "Error creating SGXUSIG instance with key unsealing")
 	assert.NotNil(t, usig, "Got nil SGXUSIG instance")
 	defer usig.Destroy()
@@ -61,11 +63,21 @@ func TestSGXUSIG(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, epoch, parsedEpoch)
 	assert.Equal(t, usigPubKey, parsedPubKey)
-
+	
 	ui, err := usig.CreateUI(msg)
 	assert.NoError(t, err, "Error creating UI")
 	assert.NotNil(t, ui, "Got nil UI")
 	assert.Equal(t, uint64(1), ui.Counter, "Got wrong UI counter value")
+	log.Printf("After testing CreateUI")
+	usig1, err := New(enclaveFile, keys,key)
+	epoch0:= usig.Epoch()
+ 	epoch1:=usig1.Epoch()
+	fmt.Println(epoch0)
+	fmt.Println(epoch1)
+	err =usig1.VerifyUI(msg, ui, usigID)
+	//epoch0:= usig.Epoch()
+	//epoch1:=usig1.Epoch()
+	assert.NoError(t, err, "Error Verifying UI")
 
 	ui, err = usig.CreateUI(msg)
 	assert.NoError(t, err, "Error creating UI")
@@ -75,9 +87,9 @@ func TestSGXUSIG(t *testing.T) {
 	// There's no need to repeat all the checks covered by C test
 	// of the enclave. But correctness of the signature should be
 	// checked.
-	err = VerifyUI(msg, ui, usigID)
-	assert.NoError(t, err, "Error verifying UI")
+//	err =usig.VerifyUI(msg, ui, usigID)
+//	assert.NoError(t, err, "Error verifying UI")
 
-	err = VerifyUI(wrongMsg, ui, usigID)
-	assert.Error(t, err, "No error verifying UI with forged message")
+//	err = usig.VerifyUI(wrongMsg, ui, usigID)
+//	assert.Error(t, err, "No error verifying UI with forged message")
 }

@@ -309,7 +309,7 @@ func (spec *sgxEcdsaKeySpec) parsePrivateKey(privKeyStr string) (interface{}, er
 // generateKeyPair creates an SGX USIG instance to generate a key
 // pair, where the private key is sealed by the enclave.
 func (spec *sgxEcdsaKeySpec) generateKeyPair(securityParam int) (string, string, error) {
-	usig, err := sgxusig.New(spec.enclaveFile, nil)
+	usig, err := sgxusig.New(spec.enclaveFile, nil,nil)
 	if err != nil {
 		return "", "", err
 	}

@@ -66,8 +66,8 @@ func NewWithSGXUSIG(roles []api.AuthenticationRole, id uint32, keystoreFileReade
 	if usigKey == nil {
 		return nil, fmt.Errorf("failed to get USIG sealed key")
 	}
-
-	usig, err := sgxusig.New(enclaveFile, usigKey.([]byte))
+	var key [] byte
+	usig, err := sgxusig.New(enclaveFile, key,usigKey.([]byte))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create USIG: %v", err)
 	}
@@ -118,19 +118,20 @@ func new(roles []api.AuthenticationRole, id uint32, ks BftKeyStorer, usig usig.U
 // VerifyMessageAuthenTag verifies a message authentication tag
 // produced with GenerateMessageAuthenTag on the specified
 // replica/client node
-func (a *Authenticator) VerifyMessageAuthenTag(role api.AuthenticationRole, id uint32, msg []byte, authenTag []byte) error {
+func (a *Authenticator) VerifyMessageAuthenTag(role api.AuthenticationRole, id uint32, msg []byte, authenTag []byte) ([]byte,error) {
 	pk, err := a.ks.NodePublicKey(role, id)
 	if err != nil {
-		return err
+		return nil,err
 	}
 	authscheme := a.authschemes[role]
 	if authscheme == nil {
-		return fmt.Errorf("unknown role: %v", role)
+		return nil,fmt.Errorf("unknown role: %v", role)
 	}
-	if err := authscheme.VerifyAuthenticationTag(msg, authenTag, pk); err != nil {
-		return fmt.Errorf("invalid authentication tag: %v", err)
+	bb,er := authscheme.VerifyAuthenticationTag(msg, authenTag, pk)
+	if er != nil {
+		return nil,fmt.Errorf("invalid authentication tag: %v", er)
 	}
-	return nil
+	return bb, nil
 }
 
 // GenerateMessageAuthenTag generates message authentication tag to be

@@ -22,8 +22,11 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/binary"
 	"fmt"
+	"log"
+	"strconv"
 
 	"github.com/hyperledger-labs/minbft/usig"
 )
@@ -39,32 +42,24 @@ var _ usig.USIG = new(USIG)
 // NewUSIGEnclave(). See NewUSIGEnclave() for more details. Note that
 // the created instance has to be disposed with Destroy() method, e.g.
 // using defer.
-func New(enclaveFile string, sealedKey []byte) (*USIG, error) {
-	enclave, err := NewUSIGEnclave(enclaveFile, sealedKey)
+func New(enclaveFile string, sealedKey []byte, key []byte) (*USIG, error) {
+	enclave, err := NewUSIGEnclave(enclaveFile, sealedKey, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create USIG enclave: %v", err)
 	}
-
 	return &USIG{enclave}, nil
 }
 
 // CreateUI creates a unique identifier assigned to the message.
 func (u *USIG) CreateUI(message []byte) (*usig.UI, error) {
-	counter, signature, err := u.USIGEnclave.CreateUI(messageDigest(message))
+	counter, signature, encryptedShares, encryptedSecretH, err := u.USIGEnclave.CreateUI(messageDigest(message))
 	if err != nil {
 		return nil, err
 	}
-
 	return &usig.UI{
 		Counter: counter,
-		Cert:    MakeCert(u.epoch, signature),
+		Cert:    MakeCert(u.epoch, signature, encryptedShares, encryptedSecretH),
 	}, nil
-}
-
-// VerifyUI is just a wrapper around the VerifyUI function at the
-// package-level.
-func (u *USIG) VerifyUI(message []byte, ui *usig.UI, usigID []byte) error {
-	return VerifyUI(message, ui, usigID)
 }
 
 // ID returns the USIG instance identity.
@@ -76,24 +71,50 @@ func (u *USIG) ID() []byte {
 	return id
 }
 
-// VerifyUI verifies unique identifier generated for the message by
-// USIG with the specified identity.
-func VerifyUI(message []byte, ui *usig.UI, usigID []byte) error {
-	epoch, pubKey, err := ParseID(usigID)
+func (u *USIG) VerifyUI(message []byte, ui *usig.UI, usigID []byte) ([]byte,
+	error) {
+	if message == nil || ui == nil || usigID == nil || ui.Cert == nil {
+		log.Println("Error in SGX! ui is nil")
+	}
+
+	_, signature, encryptedShares, encryptedSecretH, err := ParseCert(ui.Cert)
 	if err != nil {
-		return fmt.Errorf("failed to parse USIG ID: %s", err)
+		return nil, fmt.Errorf("failed to parse UI cert: %s", err)
+	}
+	if signature == nil || encryptedShares == nil || encryptedSecretH == nil {
+		log.Println("Error in SGX! something is nil!")
 	}
 
-	uiEpoch, signature, err := ParseCert(ui.Cert)
+	shares, secretHash, err := u.USIGEnclave.VerifyUI(messageDigest(message), signature, encryptedShares, encryptedSecretH)
+
 	if err != nil {
-		return fmt.Errorf("failed to parse UI cert: %s", err)
+		return nil, fmt.Errorf("invalid UI: %s", err)
 	}
-
-	if uiEpoch != epoch {
-		return fmt.Errorf("epoch value mismatch")
+	bb, er := SharesSecretHashToBytes(shares, secretHash)
+	if shares == nil {
+		log.Println("Error in SGX! something is nil")
 	}
+	if er != nil {
+		return bb, er
+	}
+	return bb, nil
 
-	return VerifySignature(pubKey, messageDigest(message), epoch, ui.Counter, signature)
+}
+func SharesSecretHashToBytes(share []byte, secretHash Digest) ([]byte, error) {
+	type verifier struct {
+		S  []byte
+		SH []byte
+	}
+	v := verifier{
+		S:  share,
+		SH: secretHash[:],
+	}
+	ret, err := asn1.Marshal(v)
+	if err != nil {
+		panic(err)
+		return nil, err
+	}
+	return ret, nil
 }
 
 func messageDigest(message []byte) Digest {
@@ -113,7 +134,6 @@ func MakeID(epoch uint64, publicKey interface{}) ([]byte, error) {
 	if err := binary.Write(buf, binary.BigEndian, epoch); err != nil {
 		panic(err)
 	}
-
 	if err := binary.Write(buf, binary.BigEndian, publicKeyBytes); err != nil {
 		panic(err)
 	}
@@ -140,29 +160,44 @@ func ParseID(usigID []byte) (epoch uint64, pubKey crypto.PublicKey, err error) {
 
 // MakeCert composes a USIG certificate which is 64-bit big-endian
 // encoded epoch value followed by serialized USIG signature.
-func MakeCert(epoch uint64, signature []byte) []byte {
-	buf := new(bytes.Buffer)
-
-	if err := binary.Write(buf, binary.BigEndian, epoch); err != nil {
+func MakeCert(epoch uint64, signature []byte, encryptedShares []byte, encryptedSecretH []byte) []byte {
+	if signature == nil || encryptedShares == nil || encryptedSecretH == nil {
+		return nil
+	}
+	type certmaker struct {
+		E   int
+		S   []byte
+		ES  []byte
+		ESH []byte
+	}
+	intNum, _ := strconv.Atoi(strconv.FormatUint(epoch, 10))
+	c := certmaker{
+		E:   intNum,
+		S:   signature,
+		ES:  encryptedShares,
+		ESH: encryptedSecretH,
+	}
+	ret, err := asn1.Marshal(c)
+	if err != nil {
 		panic(err)
 	}
-
-	if err := binary.Write(buf, binary.BigEndian, signature); err != nil {
-		panic(err)
-	}
-
-	return buf.Bytes()
+	return ret
 }
 
 // ParseCert breaks a USIG certificate down to epoch value and
 // serialized USIG signature.
-func ParseCert(cert []byte) (epoch uint64, signature []byte, err error) {
-	buf := bytes.NewBuffer(cert)
-
-	err = binary.Read(buf, binary.BigEndian, &epoch)
-	if err != nil {
-		return uint64(0), nil, fmt.Errorf("failed to extract epoch from USIG cert: %s", err)
+func ParseCert(cert []byte) (epoch uint64, signature []byte, encryptedShares []byte, encryptedSecretH []byte, err error) {
+	type certparser struct {
+		E   int
+		S   []byte
+		ES  []byte
+		ESH []byte
 	}
+	retStruct := new(certparser)
 
-	return epoch, buf.Bytes(), nil
+	ret, err := asn1.Unmarshal(cert, retStruct)
+	if err != nil || ret == nil {
+		panic(err)
+	}
+	return uint64(retStruct.E), retStruct.S, retStruct.ES, retStruct.ESH, err
 }
